@@ -19,7 +19,7 @@ BlackScholesPutPrice(t = 0, T, S, K, r, q = 0, sigma)
 
 \item{q}{Dividend yield}
 
-\item{sigma}{Volatility}
+\item{sigma}{Volatility test}
 }
 \value{
 Price of European put option

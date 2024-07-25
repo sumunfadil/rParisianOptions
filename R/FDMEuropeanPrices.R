@@ -16,9 +16,10 @@
 #' @export
 explicitFDMEuropeanPut <- function(sigma, r, T, K, Smax, N, M) {
 
-  dt <- T/M
-  dS <- Smax/N
+  delta_t <- T / M
+  delta_S <- Smax / N
 
+  # Initialize vectors
   A <- numeric(N + 1)
   B <- numeric(N + 1)
   C <- numeric(N + 1)
@@ -26,27 +27,24 @@ explicitFDMEuropeanPut <- function(sigma, r, T, K, Smax, N, M) {
 
   # Compute coefficients
   for (n in 0:N) {
-    A[n + 1] <- 0.5 * n^2 * sigma^2 * dt - 0.5 * n * r * dt
-    B[n + 1] <- 1 - n^2 * sigma^2 * dt - r * dt
-    C[n + 1] <- 0.5 * n^2 * sigma^2 * dt + 0.5 * n * r * dt
+    A[n + 1] <- 0.5 * n^2 * sigma^2 * delta_t - 0.5 * n * r * delta_t
+    B[n + 1] <- 1 - n^2 * sigma^2 * delta_t - r * delta_t
+    C[n + 1] <- 0.5 * n^2 * sigma^2 * delta_t + 0.5 * n * r * delta_t
   }
 
   # Terminal conditions
   for (n in 0:N) {
-    V[M + 1, n + 1] <- max(K - n * dS, 0)
+    V[M + 1, n + 1] <- max(K - n * delta_S, 0)
   }
 
   # Time stepping
   for (m in M:1) {
     V[m, 1] <- B[1] * V[m + 1, 1] + C[1] * V[m + 1, 2]
     for (n in 1:(N - 1)) {
-      V[m, n + 1] <- A[n + 1] * V[m + 1, n] + B[n + 1] * V[m + 1, n + 1]
-              + C[n + 1] * V[m + 1, n + 2]
+      V[m, n + 1] <- A[n + 1] * V[m + 1, n] + B[n + 1] * V[m + 1, n + 1] + C[n + 1] * V[m + 1, n + 2]
     }
     V[m, N + 1] <- A[N + 1] * V[m + 1, N] + B[N + 1] * V[m + 1, N + 1]
   }
-
-  # Price matrix
   return(V)
 }
 
