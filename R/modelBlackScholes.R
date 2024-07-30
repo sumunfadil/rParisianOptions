@@ -50,7 +50,7 @@ BlackScholesCallPrice <- function(t=0,T,S,K,r,q=0,sigma) {
 
 }
 
-# Sensitivities
+# TODO: Sensitivities
 
 
 
