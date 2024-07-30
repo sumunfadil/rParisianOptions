@@ -1,4 +1,6 @@
 
+# Plot of grid points -----------------------------------------------------
+
 
 #' Plot of grid points
 #'
@@ -12,6 +14,59 @@ plotGridPoints <- function() {
   points(rep(S, each = length(t)), rep(t, times = length(S)), pch = 15)
 
 }
+
+# Table of errors for different N and M -----------------------------------
+
+
+#' Table of errors for different N and M
+#'
+#' @param N Sequence of spatial grid points
+#' @param M Sequence of time steps
+#' @param schem FDM scheme to be applied
+#' @param view View dataframe
+#'
+#' @return Outputs table of error for different
+#' N and M in latex
+#' @export
+errorTable <- function(N,M,scheme=explicitFDMEuropeanPutError,view=TRUE, theta=NULL) {
+
+  schemeWrapper <- function(N, M) {
+
+    if (identical(scheme, thetaFDMEuropeanPutError) && !is.null(theta)) {
+      return(scheme(N, M, theta))
+    } else {
+      return(scheme(N, M))
+    }
+  }
+
+  tableExplicit <- outer(N, M, FUN = Vectorize(schemeWrapper))
+  df <- as.data.frame(t(tableExplicit))
+  rownames(df) <- M
+  colnames(df) <- N
+  df <- format(df, scientific = TRUE, digits = 5)
+
+  if (view) {
+
+    View(df)
+
+  } else {
+
+    #library(xtable)
+    latex_table <- xtable(df)
+    print(latex_table, type = "latex", include.rownames = TRUE,
+          include.colnames = TRUE)
+
+    #file_path <- "dataframe_latex_table.tex"
+    #capture.output(print(latex_table, type = "latex", include.rownames = TRUE,
+    #                     include.colnames = TRUE), file = file_path)
+
+  }
+
+}
+
+
+# Plotting function for FDM solution --------------------------------------
+
 
 #' Plotting function for FDM solution
 #'
@@ -57,152 +112,102 @@ plotFDMV <- function(S, V, BS, m=1) {
 
 }
 
-#' Error plots for explicit FDM scheme at time 0
+
+
+# Error plots for FDM scheme at time 0 ------------------------------------
+
+#' Error plots for FDM scheme at time 0
 #'
 #' @param N Number of spatial grid points
 #' @param M Number of time steps
 #' @param error If TRUE, produces error plot
 #'
-#' @return A plot of the difference between the explicit FDM
-#' solution and the Black-Scholes price, against the asset price at
+#' @return A plot of the difference between the a FDM solution
+#' and the Black-Scholes price, against the asset price at
 #' time 0, for any N and M
 #' @export
-plotsExplicitFDM <- function(N,M,error=TRUE) {
+plotFDMError <- function(N,M,scheme=explicitFDMEuropeanPut,error=TRUE,return=FALSE,plotV=FALSE, theta=NULL) {
 
   sigma <- 0.4
   r <- 0.05
   T <- 1
   K <- 0.25
   Smax <- 1
-  delta_t <- T / M
+
   delta_S <- Smax / N
 
-  # Initialize vectors
-  A <- numeric(N + 1)
-  B <- numeric(N + 1)
-  C <- numeric(N + 1)
-  V <- matrix(0, nrow = M + 1, ncol = N + 1)
-
-  # Compute coefficients
-  for (n in 0:N) {
-    A[n + 1] <- 0.5 * n^2 * sigma^2 * delta_t - 0.5 * n * r * delta_t
-    B[n + 1] <- 1 - n^2 * sigma^2 * delta_t - r * delta_t
-    C[n + 1] <- 0.5 * n^2 * sigma^2 * delta_t + 0.5 * n * r * delta_t
-  }
-
-  # Terminal conditions
-  for (n in 0:N) {
-    V[M + 1, n + 1] <- max(K - n * delta_S, 0)
-  }
-
-  # Time stepping
-  for (m in M:1) {
-    V[m, 1] <- B[1] * V[m + 1, 1] + C[1] * V[m + 1, 2]
-    for (n in 1:(N - 1)) {
-      V[m, n + 1] <- A[n + 1] * V[m + 1, n] + B[n + 1] * V[m + 1, n + 1] + C[n + 1] * V[m + 1, n + 2]
-    }
-    V[m, N + 1] <- A[N + 1] * V[m + 1, N] + B[N + 1] * V[m + 1, N + 1]
+  if (identical(scheme, thetaFDMEuropeanPut) && !is.null(theta)) {
+    V <- scheme(sigma, r, T, K, Smax, N, M, theta)
+  } else {
+    V <- scheme(sigma, r, T, K, Smax, N, M)
   }
 
   S <- seq(from = 0, to=1, by = delta_S)
   V0 <- V[1,]
+  BSPut <- sapply(S, BlackScholesPutPrice, T=T, K=K, r=r, sigma=sigma, t=0, q=0)
+  PutPriceErrors <- V0 - BSPut
 
   if (error){
 
     par(mfrow = c(1, 1))
     par(mar = c(4, 4.5, 4.5, 1) + 0.1)
 
-    BSPut <- sapply(S, BlackScholesPutPrice, T=T, K=K, r=r, sigma=sigma, t=0, q=0)
-    PutPriceErrors <- V0 - BSPut
     plot(S, PutPriceErrors, type = "p", pch = 15,
          xlab = expression(S[n]), ylab = expression(V[n]^0 - V(S[n],0)), cex = 0.9,
          main = paste("N =", N, ", M =", M))
 
     par(mar = c(5, 4, 4, 2) + 0.1)
 
-  } else {
+  }
+
+  if (plotV) {
     plot(S, V0, type = "o", col = "black", pch = 15, xlab = "S", ylab = "V(S,0)")
     lines(S, V0, col = "blue")
+  }
+
+  if (return) {
+    return(list(S = S,Error = PutPriceErrors))
   }
 
 }
 
 
-#' Error plots for implicit FDM scheme at time 0
+#' Error plots for implicit FDM scheme at time 0 for
+#' different N and M
 #'
-#' @param N Number of spatial grid points
-#' @param M Number of time steps
-#' @param error If TRUE, produces error plot
+#' @param P1 Error plot 1 list
+#' @param P2 Error plot 2 list
+#' @param P2 Error plot 3 list
+#' @param P4 Error plot 4 list
 #'
-#' @return A plot of the difference between the implicit FDM
+#' @return A plot of the difference between the any FDM
 #' solution and the Black-Scholes price, against the asset price at
-#' time 0, for any N and M
+#' time 0, for 4 pairs of (N,M)
 #' @export
-plotsImplicitFDM <- function(N,M,error=TRUE) {
+plotErrorMultiple <- function(P1,P2,P3,P4) {
 
-  sigma <- 0.4
-  r <- 0.05
-  T <- 1
-  K <- 0.25
-  Smax <- 1
-  delta_t <- T / M
-  delta_S <- Smax / N
+  par(mfrow = c(1, 1))
+  par(mar = c(4, 4.5, 4.5, 1) + 0.1)
 
-  # Initialize vectors
-  a <- numeric(N-1)
-  b <- numeric(N)
-  c <- numeric(N-1)
-  KMatrix <- matrix(0, nrow = N, ncol = N)
-  V <- matrix(0, nrow = M + 1, ncol = N + 1)
+  plot(P1$S, P1$Error, type = "p", pch = 0,
+       main = "Error plot for FDM scheme",
+       xlab = expression(S[n]), ylab = expression(V[n]^0 - V(S[n],0)))
+  points(P2$S, P2$Error, type = "p", pch = 3, col = "blue")
+  points(P3$S, P3$Error, type = "p", pch = 9, col = "purple")
+  points(P4$S, P4$Error, type = "l", col = "red", lwd = 2)
 
-  # Compute coefficients
-  for (n in 0:(N-1)) {
+  legend(x = 0.55, y = -0.00175,
+         legend = c("N=16, M=16", "N=16, M=32", "N=32, M=32", "N=512, M=65536"),
+         col = c("black", "blue", "purple", "red"),
+         pch = c(0, 3, 9, NA),
+         lty = c(NA, NA, NA, 1),
+         lwd = c(NA, NA, NA, 2),
+         cex = 0.9,
+         bty = "n",
+         y.intersp = 0.5
+  )
 
-    if (n>0) {
-      a[n] <- -0.5 * n^2 * sigma^2 * delta_t + 0.5 * n * r * delta_t
-    }
-
-    b[n+1] <- 1 + n^2 * sigma^2 * delta_t + r * delta_t
-
-    if (n<(N-1)) {
-      c[n+1] <- -0.5 * n^2 * sigma^2 * delta_t - 0.5 * n * r * delta_t
-    }
-  }
-
-  KMatrix <- tridiagonalMatrix(a, b, c)
-
-  # Terminal conditions
-  for (n in 0:N) {
-    V[M + 1, n + 1] <- max(K - n * delta_S, 0)
-  }
-
-  # VNm = 0 (by default zero entries)
-
-  # Matrix multiplication
-  for (m in (M+1):1) {
-    V[m-1,1:N] = thomasAlgorithmSolver(KMatrix, V[m,1:N])
-  }
-
-  S <- seq(from = 0, to=1, by = delta_S)
-  V0 <- V[1,]
-
-  if (error){
-
-    par(mfrow = c(1, 1))
-    par(mar = c(4, 4.5, 4.5, 1) + 0.1)
-
-    BSPut <- sapply(S, BlackScholesPutPrice, T=T, K=K, r=r, sigma=sigma, t=0, q=0)
-    PutPriceErrors <- V0 - BSPut
-    plot(S, PutPriceErrors, type = "p", pch = 15,
-         xlab = expression(S[n]), ylab = expression(V[n]^0 - V(S[n],0)), cex = 0.9,
-         main = paste("N =", N, ", M =", M))
-
-    par(mar = c(5, 4, 4, 2) + 0.1)
-
-  } else {
-    plot(S, V0, type = "o", col = "black", pch = 15, xlab = "S", ylab = "V(S,0)")
-    lines(S, V0, col = "blue")
-  }
+  par(mar = c(5, 4, 4, 2) + 0.1)
 
 }
 
